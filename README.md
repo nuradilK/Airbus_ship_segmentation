@@ -1,6 +1,6 @@
 # Airbus_ship_segmentation
 
-This is a repository for a ROBT407 - Machine Learning course. The project's goal is to construct a model that performs well on (Airbus Ship Detection)[https://www.kaggle.com/c/airbus-ship-detection] dataset.
+This is a repository for a ROBT407 - Machine Learning course. The project's goal is to construct a model that performs well on [Airbus Ship Detection](https://www.kaggle.com/c/airbus-ship-detection) dataset.
 
 For this dataset, one must perform an image segmentation, i.e. give a mask that describes the location of the ships.
 
