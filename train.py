@@ -30,7 +30,7 @@ def validation(model, criterion, valid_loader, batch_size):
     print("Validation of model")
     model.eval()
     losses, jaccard = [], []
-    tq = tqdm(total=len(valid_loader) *  batch_size // 2, position=0, leave=True)
+    tq = tqdm(total=len(valid_loader) *  batch_size // 2, position=0, leave=True) # show progress bar
     tq.set_description('validation')
     with torch.no_grad():
         for inputs, targets in valid_loader:
@@ -73,7 +73,7 @@ def train(lr, model, criterion, train_loader, valid_loader, validation, init_opt
         'model': model.state_dict(),
         'epoch': ep,
         'step': step,
-    }, str(model_path))
+    }, str(model_path)) # prevents accidental model loss
 
     report_each = 50
     log = open(log_path, 'at', encoding='utf8')
@@ -111,8 +111,8 @@ def train(lr, model, criterion, train_loader, valid_loader, validation, init_opt
                 save(epoch + 1)
         except KeyboardInterrupt:
             tq.close()
-            print('Ctrl+C, saving snapshot')
-            save(epoch)
+            print('Ctrl+C, saving snapshot') 
+            save(epoch) # to save the model and resume from te last step
             print('done.')
             return
         
@@ -123,9 +123,9 @@ def make_loader(in_df, batch_size, train_image_dir, test_image_dir, shuffle=Fals
         num_workers = 0,
         batch_size = batch_size,
         pin_memory=torch.cuda.is_available()
-    )
+    ) # data loader for batch training
     
-def make_submission(model, submission_path, train_image_dir, test_image_dir, batch_size):
+def make_submission(model, submission_path, train_image_dir, test_image_dir, batch_size): # function used for Kaggle submissions
     test_paths = os.listdir(test_image_dir)
     print(len(test_paths), 'test images found')
 
