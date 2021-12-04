@@ -3,7 +3,12 @@ from torch import nn
 import torchvision.models as models
 from torchvision.models.resnet import ResNet, BasicBlock
 
+# There are two autoencoder based models implemented here - UNet and ResNet. 
+
+# UNet architecture consists of layers going "upwards" and "downwards".
 # Implementation from https://github.com/timctho/unet-pytorch/
+
+# Down-sampling block:
 class UNet_down_block(torch.nn.Module):
     def __init__(self, input_channel, output_channel, down_size):
         super(UNet_down_block, self).__init__()
@@ -24,7 +29,8 @@ class UNet_down_block(torch.nn.Module):
         x = self.relu(self.bn2(self.conv2(x)))
         x = self.relu(self.bn3(self.conv3(x)))
         return x
-
+    
+# Up-sampling block: 
 class UNet_up_block(torch.nn.Module):
     def __init__(self, prev_channel, input_channel, output_channel):
         super(UNet_up_block, self).__init__()
@@ -45,7 +51,7 @@ class UNet_up_block(torch.nn.Module):
         x = self.relu(self.BN3(self.CONV3(x)))
         return x
 
-
+# Building the uniform UNet architecture.
 class UNet(torch.nn.Module):
     def __init__(self):
         super(UNet, self).__init__()
@@ -92,7 +98,7 @@ class UNet(torch.nn.Module):
         self.x7 = self.relu(self.bn2(self.mid_conv2(self.x7)))
         self.x7 = self.relu(self.bn3(self.mid_conv3(self.x7)))
 
-        # Encoder part
+        # Decoder part
         x = self.up_block1(self.x6, self.x7)
         x = self.up_block2(self.x5, x)
         x = self.up_block3(self.x4, x)
@@ -102,7 +108,8 @@ class UNet(torch.nn.Module):
         x = self.relu(self.last_bn(self.last_conv1(x)))
         x = self.last_conv2(x)
         return x
-    
+
+# Building ResNet-UNet architecture.
 class ResNet18(ResNet):
     def __init__(self):
         super(ResNet18, self).__init__(BasicBlock, [2, 2, 2, 2])
@@ -149,7 +156,7 @@ class ResNet18(ResNet):
         self.x6 = self.relu(self.BN2(self.mid_conv2(self.x6)))
         self.x6 = self.relu(self.BN3(self.mid_conv3(self.x6)))
         
-        # beginning of upnet
+        # beginning of upnet (Decoder)
         x = self.up_block1(self.x5, self.x6)
         x = self.up_block2(self.x4, x)
         x = self.up_block3(self.x3, x)
