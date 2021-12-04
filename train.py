@@ -232,6 +232,7 @@ def main():
     
     # Dropping the Corrupted Data
     train_df = train_df[train_df['ImageId'] != '6384c3e78.jpg']
+    # Create dataloader data structure, so we could itere through the dataset by small-batches
     train_loader = make_loader(train_df, batch_size=args.batch_size, 
                                train_image_dir=args.train_dataset_dir, test_image_dir=args.test_dataset_dir, shuffle=True, transform=train_transform)
     valid_loader = make_loader(valid_df, batch_size=args.batch_size // 2, 
