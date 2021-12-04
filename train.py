@@ -32,6 +32,7 @@ def validation(model, criterion, valid_loader, batch_size):
     losses, jaccard = [], []
     tq = tqdm(total=len(valid_loader) *  batch_size // 2, position=0, leave=True) # show progress bar
     tq.set_description('validation')
+    # Iteration almost same as for the training epoch, a single difference is that the gradiennts are not calculated and the weights not updated
     with torch.no_grad():
         for inputs, targets in valid_loader:
             inputs = variable(inputs, volatile=True)
@@ -54,10 +55,10 @@ def validation(model, criterion, valid_loader, batch_size):
 # ref  https://github.com/ternaus/robot-surgery-segmentation
 def train(lr, model, criterion, train_loader, valid_loader, validation, init_optimizer, batch_size, model_path, log_path, n_epochs=1):
     optimizer = init_optimizer(lr)
-    #model = nn.DataParallel(model, device_ids=None)
     if torch.cuda.is_available():
         model.cuda()
        
+    # Load the model's weights if it exists
     model_path = Path(model_path)
     if model_path.exists():
         state = torch.load(str(model_path))
@@ -82,6 +83,7 @@ def train(lr, model, criterion, train_loader, valid_loader, validation, init_opt
     for epoch in range(epoch, n_epochs + 1):
         model.train()
         random.seed()
+        # Visual representation of training process (creates a progress bar)
         tq = tqdm(total=len(train_loader) *  batch_size, position=0, leave=True)
         tq.set_description('Epoch {}, lr {}'.format(epoch, lr))
         losses = []
@@ -90,29 +92,37 @@ def train(lr, model, criterion, train_loader, valid_loader, validation, init_opt
             mean_loss = 0
             for i, (inputs, targets) in enumerate(tl):
                 inputs, targets = variable(inputs), variable(targets)
+                # Gets prediction
                 outputs = model(inputs)
+                # Calculates loss
                 loss = criterion(outputs, targets)
+                # Clears gradients
                 optimizer.zero_grad()
                 batch_size = inputs.size(0)
+                # Calculates gradients
                 loss.backward()
+                # Updates weights
                 optimizer.step()
+                # Updates the progress bar
                 tq.update(batch_size)
                 losses.append(loss.item())
                 mean_loss = np.mean(losses[-report_each:])
+                # This is needed to see batch loss online
                 tq.set_postfix(loss='{:.5f}'.format(mean_loss))
             tq.close()
+            # Loggings
             write_event(log, epoch, loss=np.mean(losses))
             valid_metrics = validation(model, criterion, valid_loader, batch_size)
             write_event(log, epoch, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
             valid_losses.append(valid_loss)
+            # Update the best model according to the valid loss
             if best_valid_loss > valid_loss:
                 best_valid_loss = valid_loss
                 save(epoch + 1)
         except KeyboardInterrupt:
+            # We can quit from the training safely by saving the model
             tq.close()
-            print('Ctrl+C, saving snapshot') 
-            save(epoch) # to save the model and resume from te last step
             print('done.')
             return
         
@@ -140,14 +150,17 @@ def make_submission(model, submission_path, train_image_dir, test_image_dir, bat
     ) 
 
     out_pred_rows = []
+    # Almost same as the validation function
     with torch.no_grad():
         for batch_num, (inputs, paths) in enumerate(tqdm(loader, desc='Predict')):
             inputs = variable(inputs, volatile=True)
             outputs = model(inputs)
             for i, image_name in enumerate(paths):
                 mask = F.sigmoid(outputs[i,0]).data.cpu().numpy()
+                # This function makes outputing mask more smooth, so there will not be some random positive single pixels
                 cur_seg = binary_opening(np.squeeze(mask>0.5), disk(2))
                 cur_seg.reshape(mask.shape)
+                # We have to encode the mask to be able to calculate the score 
                 cur_rles = multi_rle_encode(cur_seg)
                 if len(cur_rles)>0:
                     for c_rle in cur_rles:
@@ -155,6 +168,7 @@ def make_submission(model, submission_path, train_image_dir, test_image_dir, bat
                 else:
                     out_pred_rows += [{'ImageId': image_name, 'EncodedPixels': None}]
 
+    # Make the submission file
     submission_df = pd.DataFrame(out_pred_rows)[['ImageId', 'EncodedPixels']]
     submission_df.to_csv(submission_path, index=False)
 
@@ -190,9 +204,11 @@ def main():
     # Drop exessive data which do not contain ships
     masks = masks.drop(masks[masks.EncodedPixels.isnull()].sample(70000,random_state=42).index)
 
+    # Slitting the dataset into train and valid
     unique_img_ids = masks.groupby('ImageId').size().reset_index(name='counts')
     train_ids, valid_ids = train_test_split(unique_img_ids, 
                      test_size = 0.05, 
+                     # This is important to make distribution as same as possible 
                      stratify = unique_img_ids['counts'],
                      random_state=42
                     )
@@ -207,14 +223,14 @@ def main():
                                         isinstance(c_row['EncodedPixels'], str) else
                                         0, 1)
     
+    # Augmentation techniques
     train_transform = DualCompose([
         HorizontalFlip(),
         VerticalFlip(),
         RandomCrop((256,256,3)),
     ])
     
-    batch_size = args.batch_size 
-    # Corrupted Data
+    # Dropping the Corrupted Data
     train_df = train_df[train_df['ImageId'] != '6384c3e78.jpg']
     train_loader = make_loader(train_df, batch_size=args.batch_size, 
                                train_image_dir=args.train_dataset_dir, test_image_dir=args.test_dataset_dir, shuffle=True, transform=train_transform)
