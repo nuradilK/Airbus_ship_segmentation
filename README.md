@@ -32,3 +32,11 @@ For this project we used different models, such as
 - UNet
 - AlexNet
 - SqueezeNet
+
+## Code Contents
+- `Exploratory_data_analysis.ipynb` - Jupyter Notebook with data analysis of the ship dataset
+- `augmentation.py` - Contains clasess to perform segmentation masks manipulation necessary for pytorch
+- `autoencoders.py` - Autoencoders UNet and ResNet, used by pytorch
+- `fastai_trainer.py` - AlexNet and SqueezeNet models from fast.ai.
+- `train.py` - pytorch code that trains models
+- `utils.py` - different functions for encoding/decoding, calculating loss, jaccard coefficients, etc.
