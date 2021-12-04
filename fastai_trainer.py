@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 import os
 import torch
 
+# Converts run-length encoding of the target variable into 768x786 matrix of 0 and 1.
 def rle_decode(mask_rle, shape=(768, 768)):
     '''
     mask_rle: run-length as string formated (start length)
@@ -23,6 +24,7 @@ def rle_decode(mask_rle, shape=(768, 768)):
         img[lo:hi] = 1
     return img.reshape(shape).T
 
+# Encodes  768x786 matrix of 0 and 1 back to run-lengths format.
 def rle_encode(img):
     '''
     img: numpy array, 1 - mask, 0 - background
@@ -34,18 +36,21 @@ def rle_encode(img):
     runs[1::2] -= runs[::2]
     return ' '.join(str(x) for x in runs)
 
+# Decodes an rle-label.
 def label_func(fn):
     rle = masks[fn.name]
     if not isinstance(rle, str):
         return np.zeros((768, 768), dtype=np.uint8)
     return rle_decode(rle)
 
+# Predicts the location of a ship, and returns it in run-length format.
 def predict(path, learn):
     img = cv2.imread(str(path))
     predicted_masks = learn.predict(img)
     mask = cv2.resize(predicted_masks[1].numpy().astype('uint8'), (768, 768))
     return rle_encode(mask)
 
+# Training procedures.
 def main():
     input_path = './train_v2'
     test_input_path = './test_v2'
@@ -53,6 +58,7 @@ def main():
     test_images = [img for img in Path(test_input_path).ls() if img.name[-4:] == '.jpg']
     sample = [image for image in images if isinstance(masks[image.name], str)]
 
+    # Initialize the model of batch_size = 32
     dls = SegmentationDataLoaders.from_label_func(
         input_path,
         bs=32,
@@ -61,7 +67,7 @@ def main():
         item_tfms=RandomResizedCrop(256, min_scale=0.3),
         batch_tfms=aug_transforms(),
     )
-
+    # Initialize the model of batch_size = 16
     dls2 = SegmentationDataLoaders.from_label_func(
         input_path,
         bs=16,
@@ -70,7 +76,8 @@ def main():
         item_tfms=RandomResizedCrop(348, min_scale=0.3),
         batch_tfms=aug_transforms(),
     )
-
+    
+    # Initialize the model of batch_size = 8
     dls3 = SegmentationDataLoaders.from_label_func(
         input_path,
         bs=8,
@@ -78,7 +85,8 @@ def main():
         label_func=label_func,
         batch_tfms=aug_transforms(),
     )
-
+    
+    # Training the models.
     learn = unet_learner(dls, resnet34, n_out=2, metrics=JaccardCoeff(), cbs=CSVLogger('resnet34_1.csv'))
     learn.fine_tune(10)
 
@@ -95,7 +103,8 @@ def main():
     learn.fine_tune(5)
 
     learn.save('ResNet_3')
-
+    
+    # Predicting images from test set and saving the result.
     preds = []
     with learn.no_bar():
         for img in test_images:
