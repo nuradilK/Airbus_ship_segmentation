@@ -22,7 +22,7 @@ from skimage.morphology import label
 
 
 # ref: https://www.kaggle.com/paulorzp/run-length-encode-and-decode
-def rle_encode(img):
+def rle_encode(img): # encode into run pixel format
     '''
     img: numpy array, 1 - mask, 0 - background
     Returns run length as string formated
@@ -37,7 +37,7 @@ def multi_rle_encode(img):
     labels = label(img)
     return [rle_encode(labels==k) for k in np.unique(labels[labels>0])]
 
-def rle_decode(mask_rle, shape=(768, 768)):
+def rle_decode(mask_rle, shape=(768, 768)): # decode into a matrix of 0 and 1
     '''
     mask_rle: run-length as string formated (start length)
     shape: (height,width) of array to return 
@@ -52,7 +52,7 @@ def rle_decode(mask_rle, shape=(768, 768)):
         img[lo:hi] = 1
     return img.reshape(shape).T  # Needed to align to RLE direction
 
-def masks_as_image(in_mask_list):
+def masks_as_image(in_mask_list): # operates on batch
     # Take the individual ship masks and create a single mask array for all ships
     all_masks = np.zeros((768, 768), dtype = np.int16)
     #if isinstance(in_mask_list, list):
@@ -119,17 +119,17 @@ class LossBinary:
             loss -= self.jaccard_weight * torch.log((intersection + eps) / (union - intersection + eps))
         return loss
 
-def get_jaccard(y_true, y_pred):
+def get_jaccard(y_true, y_pred): # jaccard coefficient
     epsilon = 1e-15
     intersection = (y_pred * y_true).sum(dim=-2).sum(dim=-1).sum(dim = -1)
     union = y_true.sum(dim=-2).sum(dim=-1).sum(dim=-1) + y_pred.sum(dim=-2).sum(dim=-1).sum(dim = -1)
 
     return (intersection / (union - intersection + epsilon)).mean()
 
-def cuda(x):
+def cuda(x): # move to gpu if possible
     return x.cuda() if torch.cuda.is_available() else x
 
-def variable(x, volatile=False):
+def variable(x, volatile=False): # can be optimized, essentially necessary to move data to GPU
     if isinstance(x, (list, tuple)):
         return [variable(y, volatile=volatile) for y in x]
     return cuda(Variable(x, volatile=volatile))
