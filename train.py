@@ -187,6 +187,10 @@ def load_model(model_name, model_path):
     return model
 
 def main():
+    '''
+    Argparse is extremely useful during training processes, as we were able to start training processes from terminal.
+    We also can send hyperparameters from the terminal, so we do not have to hard code them.
+    '''
     parser = argparse.ArgumentParser(description='AutoEncoder trainer')
     parser.add_argument('--epoch', help='an epoch num', default=1)
     parser.add_argument('--batch-size', help='a batch size', default=36)
