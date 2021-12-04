@@ -78,6 +78,7 @@ class UNet(torch.nn.Module):
         self.relu = torch.nn.ReLU()
 
     def forward(self, x):
+        # Encoder part 
         self.x1 = self.down_block1(x)
         self.x2 = self.down_block2(self.x1)
         self.x3 = self.down_block3(self.x2)
@@ -85,9 +86,13 @@ class UNet(torch.nn.Module):
         self.x5 = self.down_block5(self.x4)
         self.x6 = self.down_block6(self.x5)
         self.x7 = self.down_block7(self.x6)
+
+        # Bottleneck part
         self.x7 = self.relu(self.bn1(self.mid_conv1(self.x7)))
         self.x7 = self.relu(self.bn2(self.mid_conv2(self.x7)))
         self.x7 = self.relu(self.bn3(self.mid_conv3(self.x7)))
+
+        # Encoder part
         x = self.up_block1(self.x6, self.x7)
         x = self.up_block2(self.x5, x)
         x = self.up_block3(self.x4, x)
@@ -103,6 +108,7 @@ class ResNet18(ResNet):
         super(ResNet18, self).__init__(BasicBlock, [2, 2, 2, 2])
         
         self.down_block1 = UNet_down_block(3, 16, False)
+        # Because of the following line it is not possible to use pre-trained weights
         self.conv1 = nn.Conv2d(16, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         
