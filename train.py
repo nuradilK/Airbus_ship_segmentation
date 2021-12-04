@@ -26,7 +26,7 @@ from augmentation import DualCompose, VerticalFlip, HorizontalFlip, RandomCrop
 from utils import * 
 
 
-def validation(model: nn.Module, criterion, valid_loader, batch_size):
+def validation(model, criterion, valid_loader, batch_size):
     print("Validation of model")
     model.eval()
     losses, jaccard = [], []
