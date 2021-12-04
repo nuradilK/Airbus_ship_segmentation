@@ -52,3 +52,8 @@ class RandomCrop:
         assert img.shape[1] == self.w
 
         if mask is not None:
+            if mask.ndim == 2:
+                mask = np.expand_dims(mask, axis=2)
+            mask = mask[h_start: h_start + self.h, w_start: w_start + self.w,:]
+
+        return img, mask

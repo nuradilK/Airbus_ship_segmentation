@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 from tqdm import tqdm
 from pathlib import Path
+import argparse
 
 import torch
 import torchvision
@@ -51,13 +52,13 @@ def validation(model: nn.Module, criterion, valid_loader, batch_size):
     return metrics
     
 # ref  https://github.com/ternaus/robot-surgery-segmentation
-def train(lr, model, criterion, train_loader, valid_loader, validation, init_optimizer, batch_size, n_epochs=1):
+def train(lr, model, criterion, train_loader, valid_loader, validation, init_optimizer, batch_size, model_path, log_path, n_epochs=1):
     optimizer = init_optimizer(lr)
     #model = nn.DataParallel(model, device_ids=None)
     if torch.cuda.is_available():
         model.cuda()
        
-    model_path = Path('model_1_UNet.pt')
+    model_path = Path(model_path)
     if model_path.exists():
         state = torch.load(str(model_path))
         epoch = state['epoch']
@@ -75,7 +76,7 @@ def train(lr, model, criterion, train_loader, valid_loader, validation, init_opt
     }, str(model_path))
 
     report_each = 50
-    log = open('train_1_UNet.log', 'at', encoding='utf8')
+    log = open(log_path, 'at', encoding='utf8')
     best_valid_loss = 1e9
     valid_losses = []
     for epoch in range(epoch, n_epochs + 1):
@@ -124,19 +125,19 @@ def make_loader(in_df, batch_size, train_image_dir, test_image_dir, shuffle=Fals
         pin_memory=torch.cuda.is_available()
     )
     
-def make_submission(model, train_image_dir, test_image_dir, batch_size):
+def make_submission(model, submission_path, train_image_dir, test_image_dir, batch_size):
     test_paths = os.listdir(test_image_dir)
     print(len(test_paths), 'test images found')
 
     test_df = pd.DataFrame({'ImageId': test_paths, 'EncodedPixels':None})
 
     loader = DataLoader(
-            dataset=SegmentationDataset(test_df, train_image_dir, test_image_dir, transform=None, mode='predict'),
-            shuffle=False,
-            batch_size=batch_size // 2,
-            num_workers=0,
-            pin_memory=torch.cuda.is_available()
-        ) 
+        dataset=SegmentationDataset(test_df[:100], train_image_dir, test_image_dir, transform=None, mode='predict'),
+        shuffle=False,
+        batch_size=batch_size // 2,
+        num_workers=0,
+        pin_memory=torch.cuda.is_available()
+    ) 
 
     out_pred_rows = []
     with torch.no_grad():
@@ -155,14 +156,37 @@ def make_submission(model, train_image_dir, test_image_dir, batch_size):
                     out_pred_rows += [{'ImageId': image_name, 'EncodedPixels': None}]
 
     submission_df = pd.DataFrame(out_pred_rows)[['ImageId', 'EncodedPixels']]
-    submission_df.to_csv('submission_UNet.csv', index=False)
+    submission_df.to_csv(submission_path, index=False)
+
+def load_model(model_name, model_path):
+    model = None
+    if model_name == 'resnet':
+        model = ResNet18()
+    else:
+        model = UNet()
+    state = torch.load(str(model_path))
+    state = {key.replace('module.', ''): value for key, value in state['model'].items()}
+    model.load_state_dict(state)
+    if torch.cuda.is_available():
+        model.cuda()
+    model.eval()
+    return model
 
 def main():
-    ship_dir = ''
-    train_image_dir = os.path.join(ship_dir, 'train_v2')
-    test_image_dir = os.path.join(ship_dir, 'test_v2')
-    
-    masks = pd.read_csv(os.path.join(ship_dir, 'train_ship_segmentations_v2.csv'))
+    parser = argparse.ArgumentParser(description='AutoEncoder trainer')
+    parser.add_argument('--epoch', help='an epoch num', default=1)
+    parser.add_argument('--batch-size', help='a batch size', default=36)
+    parser.add_argument('--lr', help='learning rate', default=0.001)
+    parser.add_argument('--model-name', help='model name (resnet or unet)', default='resnet')
+    parser.add_argument('--model-path', help='model path to read or write', default='model.pt')
+    parser.add_argument('--log-path', help='log path to read or write', default='logs.log')
+    parser.add_argument('--train-dataset-dir', help='a train dataset dir', default='train_v2')
+    parser.add_argument('--test-dataset-dir', help='a test dataset dir', default='test_v2')
+    parser.add_argument('--df-path', help='a train data-frame path', default='train_ship_segmentations_v2.csv')
+    parser.add_argument('--submission-path', help='a csv submission path', default='submission.csv')
+    args = parser.parse_args()
+
+    masks = pd.read_csv(args.df_path)
     # Drop exessive data which do not contain ships
     masks = masks.drop(masks[masks.EncodedPixels.isnull()].sample(70000,random_state=42).index)
 
@@ -189,38 +213,35 @@ def main():
         RandomCrop((256,256,3)),
     ])
     
-    batch_size = 64 
+    batch_size = args.batch_size 
     # Corrupted Data
     train_df = train_df[train_df['ImageId'] != '6384c3e78.jpg']
-    train_loader = make_loader(train_df, batch_size =  batch_size, 
-                               train_image_dir=train_image_dir, test_image_dir=test_image_dir, shuffle=True, transform=train_transform)
-    valid_loader = make_loader(valid_df, batch_size = batch_size // 2, 
-                               train_image_dir=train_image_dir, test_image_dir=test_image_dir, transform=None)
+    train_loader = make_loader(train_df[:100], batch_size=args.batch_size, 
+                               train_image_dir=args.train_dataset_dir, test_image_dir=args.test_dataset_dir, shuffle=True, transform=train_transform)
+    valid_loader = make_loader(valid_df[:100], batch_size=args.batch_size // 2, 
+                               train_image_dir=args.train_dataset_dir, test_image_dir=args.test_dataset_dir, transform=None)
 
-    model = UNet()
+    model = None
+    if args.model_name == 'resnet':
+        model = ResNet18()
+    else:
+        model = UNet()
     train(init_optimizer=lambda lr: Adam(model.parameters(), lr=lr),
         lr = 1e-3,
-        n_epochs = 10,
+        n_epochs = args.epoch,
         model=model,
         criterion=LossBinary(jaccard_weight=5),
         train_loader=train_loader,
         valid_loader=valid_loader,
-        batch_size=batch_size,
+        batch_size=args.batch_size,
         validation=validation,
+        model_path=args.model_path,
+        log_path=args.log_path,
     )
 
-    model = UNet()
-    batch_size = 64
-    model_path ='model_1_UNet.pt'
-    state = torch.load(str(model_path))
-    state = {key.replace('module.', ''): value for key, value in state['model'].items()}
-    model.load_state_dict(state)
-    if torch.cuda.is_available():
-        model.cuda()
-    model.eval()
-    
-    make_submission(model, train_image_dir, test_image_dir, batch_size)
+    model = load_model(args.model_name, args.model_path)
+    make_submission(model, args.submission_path, args.train_dataset_dir, args.test_dataset_dir, args.batch_size)
 
 if __name__ == '__main__':
     main()
-    
+
