@@ -132,7 +132,7 @@ def make_submission(model, submission_path, train_image_dir, test_image_dir, bat
     test_df = pd.DataFrame({'ImageId': test_paths, 'EncodedPixels':None})
 
     loader = DataLoader(
-        dataset=SegmentationDataset(test_df[:100], train_image_dir, test_image_dir, transform=None, mode='predict'),
+        dataset=SegmentationDataset(test_df, train_image_dir, test_image_dir, transform=None, mode='predict'),
         shuffle=False,
         batch_size=batch_size // 2,
         num_workers=0,
@@ -216,9 +216,9 @@ def main():
     batch_size = args.batch_size 
     # Corrupted Data
     train_df = train_df[train_df['ImageId'] != '6384c3e78.jpg']
-    train_loader = make_loader(train_df[:100], batch_size=args.batch_size, 
+    train_loader = make_loader(train_df, batch_size=args.batch_size, 
                                train_image_dir=args.train_dataset_dir, test_image_dir=args.test_dataset_dir, shuffle=True, transform=train_transform)
-    valid_loader = make_loader(valid_df[:100], batch_size=args.batch_size // 2, 
+    valid_loader = make_loader(valid_df, batch_size=args.batch_size // 2, 
                                train_image_dir=args.train_dataset_dir, test_image_dir=args.test_dataset_dir, transform=None)
 
     model = None
